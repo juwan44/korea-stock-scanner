@@ -1,1 +1,5 @@
-streamlit>=1.35\npandas>=2.0\nrequests>=2.31\nlxml>=5.0\nhtml5lib>=1.1\nbeautifulsoup4>=4.12\n
+streamlit>=1.35
+pandas>=2.0
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=5.0
