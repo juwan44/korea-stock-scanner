@@ -1,1 +1,0 @@
-GitHub의 app.py와 requirements.txt를 교체한 뒤 Streamlit 앱을 Reboot하세요. Secrets/API Key는 필요 없습니다.
