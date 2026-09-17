@@ -249,7 +249,7 @@ if st.button(
             .head(top_n)
         )
 
-    st.session_state.scan = df
+    
 
 
 df = st.session_state.get(
