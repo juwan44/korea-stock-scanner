@@ -24,7 +24,7 @@ def num(v):
             .replace("+", "")
             .strip()
         )
-    except:
+    except (ValueError, TypeError):
         return None
 
 
@@ -43,7 +43,6 @@ def load_market(market):
 
     rows = []
 
-    # 여러 페이지 수집
     for page in range(1, 21):
 
         params = {
@@ -64,7 +63,6 @@ def load_market(market):
             r.raise_for_status()
             data = r.json()
 
-            # 응답 구조가 바뀌어도 최대한 대응
             stocks = (
                 data.get("stocks")
                 or data.get("result")
@@ -110,7 +108,12 @@ def load_market(market):
                     or x.get("tradingValue")
                 )
 
-                if not name or price is None:
+                if (
+                    not name
+                    or price is None
+                    or rate is None
+                    or volume is None
+                ):
                     continue
 
                 rows.append({
@@ -146,7 +149,8 @@ with st.sidebar:
     )
 
     min_change = st.number_input(
-        "최소 상승률 %",        -30.0,
+        "최소 상승률 %",
+        -30.0,
         30.0,
         2.0,
         0.5
@@ -195,61 +199,108 @@ if st.button(
 
         if market in ("전체", "코스피"):
             x = load_market("KOSPI")
+
             if not x.empty:
                 frames.append(x)
 
         if market in ("전체", "코스닥"):
             x = load_market("KOSDAQ")
+
             if not x.empty:
                 frames.append(x)
 
     if not frames:
 
         st.session_state.scan = pd.DataFrame()
-        st.error("종목 데이터를 가져오지 못했습니다.")
+
+        st.error(
+            "종목 데이터를 가져오지 못했습니다."
+        )
 
     else:
 
-        df = pd.concat(frames, ignore_index=True)
+        df = pd.concat(
+            frames,
+            ignore_index=True
+        )
 
-        for c in ["현재가", "등락률", "거래량", "거래대금원"]:
-            df[c] = pd.to_numeric(df[c], errors="coerce")
+        for col in [
+            "현재가",
+            "등락률",
+            "거래량",
+            "거래대금원"
+        ]:
+            df[col] = pd.to_numeric(
+                df[col],
+                errors="coerce"
+            )
 
-        calc_value = df["현재가"] * df["거래량"]
+        calc_value = (
+            df["현재가"] * df["거래량"]
+        )
 
-        df["거래대금원"] = df["거래대금원"].fillna(calc_value)
-        df["거래대금(억)"] = df["거래대금원"] / 100_000_000
+        df["거래대금원"] = (
+            df["거래대금원"]
+            .fillna(calc_value)
+        )
+
+        df["거래대금(억)"] = (
+            df["거래대금원"]
+            / 100_000_000
+        )
 
         df = df[
             (df["현재가"] >= min_price)
-            & df["등락률"].between(min_change, max_change)
-            & (df["거래대금(억)"] >= min_value)
+            & df["등락률"].between(
+                min_change,
+                max_change
+            )
+            & (
+                df["거래대금(억)"]
+                >= min_value
+            )
         ].copy()
 
         if not df.empty:
 
-            a = df["거래대금(억)"].rank(pct=True) * 45
-            b = df["거래량"].rank(pct=True) * 30
+            a = (
+                df["거래대금(억)"]
+                .rank(pct=True) * 45
+            )
+
+            b = (
+                df["거래량"]
+                .rank(pct=True) * 30
+            )
 
             c = (
                 (
                     (df["등락률"] - min_change)
-                    / max(max_change - min_change, 0.1)
-                ).clip(0, 1)
+                    / max(
+                        max_change - min_change,
+                        0.1
+                    )
+                )
+                .clip(0, 1)
                 * 25
             )
-        df["검색점수"] = (a + b + c).round().astype(int)
-    
 
-        df = (
-            df.sort_values(
-                ["검색점수", "거래대금(억)"],
-                ascending=False
+            df["검색점수"] = (
+                a + b + c
+            ).round().astype(int)
+
+            df = (
+                df.sort_values(
+                    [
+                        "검색점수",
+                        "거래대금(억)"
+                    ],
+                    ascending=False
+                )
+                .head(top_n)
             )
-            .head(top_n)
-        )
 
-    
+        st.session_state.scan = df
 
 
 df = st.session_state.get(
@@ -257,9 +308,12 @@ df = st.session_state.get(
     pd.DataFrame()
 )
 
+
 if not df.empty:
 
-    st.success(f"🔥 후보 {len(df)}종목")
+    st.success(
+        f"🔥 후보 {len(df)}종목"
+    )
 
     show = df[
         [
@@ -285,8 +339,10 @@ if not df.empty:
         lambda x: f"{x:,.0f}"
     )
 
-    show["거래대금(억)"] = show["거래대금(억)"].map(
-        lambda x: f"{x:,.0f}억"
+    show["거래대금(억)"] = (
+        show["거래대금(억)"].map(
+            lambda x: f"{x:,.0f}억"
+        )
     )
 
     st.dataframe(
@@ -296,15 +352,20 @@ if not df.empty:
     )
 
     st.caption(
-        "검색점수는 후보 정렬용이며 매수·매도 추천이 아닙니다."
+        "검색점수는 후보 정렬용이며 "
+        "매수·매도 추천이 아닙니다."
     )
+
 
 elif "scan" in st.session_state:
 
     st.warning(
-        "현재 조건에 맞는 종목이 없습니다."
+        "현재 조건에 맞는 종목이 없거나 "
+        "종목 데이터를 가져오지 못했습니다."
     )
 
+
 st.caption(
-    "공개 웹 데이터는 지연되거나 제공 방식이 변경될 수 있습니다."
+    "공개 웹 데이터는 지연되거나 "
+    "제공 방식이 변경될 수 있습니다."
 )
